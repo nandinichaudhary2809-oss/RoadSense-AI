@@ -1,43 +1,109 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
+import RoadMap from "./RoadMap";
+
+const API_URL = "http://127.0.0.1:8000";
 
 function App() {
   // Form states
   const [location, setLocation] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [severity, setSeverity] = useState("Medium");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
-  const [reports, setReports] = useState([]);
 
-  // Submit pothole report
-  function handleReportSubmit(event) {
+  // Reports and loading states
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Load saved reports from backend
+  useEffect(() => {
+    async function loadReports() {
+      try {
+        const response = await fetch(`${API_URL}/reports`);
+
+        if (!response.ok) {
+          throw new Error("Failed to load reports");
+        }
+
+        const data = await response.json();
+        setReports(data);
+        setErrorMessage("");
+      } catch (error) {
+        console.error("Error loading reports:", error);
+        setErrorMessage(
+          "Could not connect to the backend. Please check whether the server is running."
+        );
+      } finally {
+        setLoadingReports(false);
+      }
+    }
+
+    loadReports();
+  }, []);
+
+  // Submit a pothole report to the backend
+  const handleReportSubmit = async (event) => {
     event.preventDefault();
 
-    const newReport = {
-      id: Date.now(),
+    const reportData = {
       location: location.trim(),
       severity,
       description: description.trim(),
-      imageName: image ? image.name : "No image uploaded",
-      status: "Pending",
+      latitude: latitude === "" ? null : Number(latitude),
+      longitude: longitude === "" ? null : Number(longitude),
     };
 
-    setReports((previousReports) => [
-      ...previousReports,
-      newReport,
-    ]);
+    if (!reportData.location || !reportData.description) {
+      alert("Please enter the location and description.");
+      return;
+    }
 
-    // Reset form state
-    setLocation("");
-    setSeverity("Medium");
-    setDescription("");
-    setImage(null);
+    setSubmitting(true);
+    setErrorMessage("");
 
-    event.target.reset();
+    try {
+      const response = await fetch(`${API_URL}/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reportData),
+      });
 
-    alert("Pothole report submitted successfully!");
-  }
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to submit report");
+      }
+
+      const savedReport = await response.json();
+
+      setReports((previousReports) => [
+        savedReport,
+        ...previousReports,
+      ]);
+
+      setLocation("");
+      setSeverity("Medium");
+      setDescription("");
+      setImage(null);
+
+      // Reset the file input
+      event.target.reset();
+
+      alert("Pothole report submitted successfully!");
+    } catch (error) {
+      console.error("Report submission error:", error);
+      setErrorMessage(
+        "Report submit nahi hui. Please check that the backend is running."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Scroll to a section
   function scrollToSection(sectionId) {
@@ -45,6 +111,10 @@ function App() {
       behavior: "smooth",
     });
   }
+
+  const pendingReports = reports.filter(
+    (report) => report.status === "Pending"
+  ).length;
 
   return (
     <div className="app">
@@ -101,7 +171,7 @@ function App() {
           </div>
         </div>
 
-        {/* Hero Road Health Card */}
+        {/* Road Health Card */}
         <div className="hero-card">
           <div className="card-icon">📍</div>
 
@@ -120,9 +190,7 @@ function App() {
             </div>
 
             <div>
-              <strong>
-                {reports.filter((report) => report.status === "Pending").length}
-              </strong>
+              <strong>{pendingReports}</strong>
               <span>Pending</span>
             </div>
           </div>
@@ -148,9 +216,7 @@ function App() {
 
           <div className="dashboard-card">
             <span className="dashboard-icon">⚠️</span>
-            <h3>
-              {reports.filter((report) => report.status === "Pending").length}
-            </h3>
+            <h3>{pendingReports}</h3>
             <p>Active Issues</p>
           </div>
 
@@ -184,8 +250,8 @@ function App() {
               <span>🗺️</span>
               <h3>Road Issue Map</h3>
               <p>
-                An interactive map can be connected here to show reported
-                road damage by location.
+                An interactive map will show reported road damage
+                in a future update.
               </p>
 
               <button
@@ -203,7 +269,7 @@ function App() {
         </div>
       </section>
 
-      {/* Report a Pothole Form */}
+      {/* Report Form */}
       <section className="report-section" id="report-form">
         <div className="section-heading">
           <p className="tagline">REPORT ROAD DAMAGE</p>
@@ -254,30 +320,53 @@ function App() {
             }
           />
 
-          <button type="submit" className="primary-btn">
-            Submit Report
+          {image && (
+            <p>
+              Selected image: {image.name}
+            </p>
+          )}
+
+          <p className="image-note">
+            Note: Image upload is not connected to the backend yet.
+          </p>
+
+          <button
+            type="submit"
+            className="primary-btn"
+            disabled={submitting}
+          >
+            {submitting ? "Submitting..." : "Submit Report"}
           </button>
         </form>
+
+        {/* Error Message */}
+        {errorMessage && (
+          <p role="alert" className="error-message">
+            {errorMessage}
+          </p>
+        )}
 
         {/* Submitted Reports */}
         <div className="submitted-reports">
           <h3>Submitted Reports ({reports.length})</h3>
 
-          {reports.length === 0 ? (
+          {loadingReports ? (
+            <p>Loading reports...</p>
+          ) : reports.length === 0 ? (
             <p>No reports submitted yet. Submit your first report above.</p>
           ) : (
             reports.map((report) => (
               <div className="report-item" key={report.id}>
                 <h4>{report.location}</h4>
+
                 <p>
                   <strong>Severity:</strong> {report.severity}
                 </p>
+
                 <p>
                   <strong>Description:</strong> {report.description}
                 </p>
-                <p>
-                  <strong>Image:</strong> {report.imageName}
-                </p>
+
                 <p>
                   <strong>Status:</strong> {report.status}
                 </p>
@@ -304,7 +393,7 @@ function App() {
           </div>
 
           <div className="feature-card">
-            <div className="feature-icon"></div>
+            <div className="feature-icon">🤖</div>
             <h3>Analyze</h3>
             <p>
               AI can analyze road images and estimate the severity of damage.
@@ -312,7 +401,7 @@ function App() {
           </div>
 
           <div className="feature-card">
-            <div className="feature-icon"></div>
+            <div className="feature-icon">🗺️</div>
             <h3>Map</h3>
             <p>
               Reported problems can be displayed on a road-health map.
@@ -320,7 +409,7 @@ function App() {
           </div>
 
           <div className="feature-card">
-            <div className="feature-icon"></div>
+            <div className="feature-icon">🔧</div>
             <h3>Prioritize</h3>
             <p>
               Authorities can use road reports to prioritize repairs.
@@ -331,7 +420,7 @@ function App() {
 
       {/* Footer */}
       <footer>
-        <div className="logo"> RoadSense AI</div>
+        <div className="logo">RoadSense AI</div>
         <p>Turning Every Ride into Road Intelligence.</p>
         <p>© 2026 RoadSense AI</p>
       </footer>
