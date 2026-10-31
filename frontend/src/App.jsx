@@ -379,13 +379,30 @@ function App() {
         {/* Submitted Reports */}
         <div className="submitted-reports">
           <h3>Submitted Reports ({reports.length})</h3>
+          <div className="report-filters">
+            <input
+              type="text"
+              placeholder="🔍 Search by location..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
 
+            <select
+              value={severityFilter}
+              onChange={(event) => setSeverityFilter(event.target.value)}
+            >
+              <option value="All">All Severities</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
           {loadingReports ? (
             <p>Loading reports...</p>
           ) : reports.length === 0 ? (
             <p>No reports submitted yet. Submit your first report above.</p>
           ) : (
-            reports.map((report) => (
+            filteredReports.map((report) => (
               <div className="report-item" key={report.id}>
                 <h4>{report.location}</h4>
 
