@@ -117,6 +117,36 @@ function App() {
   const pendingReports = reports.filter(
     (report) => report.status === "Pending"
   ).length;
+  const highReports = reports.filter(
+    (report) => report.severity === "High"
+  ).length;
+
+  const mediumReports = reports.filter(
+    (report) => report.severity === "Medium"
+  ).length;
+
+  const lowReports = reports.filter(
+    (report) => report.severity === "Low"
+  ).length;
+  const refreshReports = async () => {
+    try {
+      setLoadingReports(true);
+
+      const response = await fetch(`${API_URL}/reports`);
+
+      if (!response.ok) {
+        throw new Error("Failed to refresh reports");
+      }
+
+      const data = await response.json();
+      setReports(data);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage("Unable to refresh reports.");
+    } finally {
+      setLoadingReports(false);
+    }
+  };
 
   return (
     <div className="app">
@@ -217,33 +247,35 @@ function App() {
           </div>
 
           <div className="dashboard-card">
-            <span className="dashboard-icon">⚠️</span>
-            <h3>{pendingReports}</h3>
-            <p>Active Issues</p>
+            <span className="dashboard-icon">🔴</span>
+            <h3>{highReports}</h3>
+            <p>High Severity</p>
           </div>
 
           <div className="dashboard-card">
-            <span className="dashboard-icon">🔧</span>
-            <h3>0</h3>
-            <p>Repairs Completed</p>
+            <span className="dashboard-icon">🟠</span>
+            <h3>{mediumReports}</h3>
+            <p>Medium Severity</p>
           </div>
 
           <div className="dashboard-card">
-            <span className="dashboard-icon">📊</span>
-            <h3>86%</h3>
-            <p>Road Health Score</p>
+            <span className="dashboard-icon">🟢</span>
+            <h3>{lowReports}</h3>
+            <p>Low Severity</p>
           </div>
         </div>
       </section>
 
       {/* Map Section */}
       <section className="map-section" id="map">
-        <div></div> className="section-heading"
-        <p className="tagline">ROAD MAP</p>
-        <h2>Reported Road Issues</h2>
-        <p>
-          Explore road damage reports submitted through RoadSense AI.
-        </p>
+        <div className="section-heading">
+          <p className="tagline">ROAD MAP</p>
+          <h2>Reported Road Issues</h2>
+          <p>
+            Explore road damage reports submitted through RoadSense AI.
+          </p>
+        </div>
+
         <div className="map-container">
           <RoadMap reports={reports} />
         </div>
