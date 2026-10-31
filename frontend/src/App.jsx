@@ -18,7 +18,9 @@ function App() {
   const [loadingReports, setLoadingReports] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("All");
   // Load saved reports from backend
   useEffect(() => {
     async function loadReports() {
@@ -147,7 +149,17 @@ function App() {
       setLoadingReports(false);
     }
   };
+  const filteredReports = reports.filter((report) => {
+    const matchesSearch = report.location
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
 
+    const matchesSeverity =
+      severityFilter === "All" ||
+      report.severity === severityFilter;
+
+    return matchesSearch && matchesSeverity;
+  });
   return (
     <div className="app">
       {/* Navbar */}
@@ -238,7 +250,13 @@ function App() {
             Monitor road conditions and identify areas that need attention.
           </p>
         </div>
-
+        <button
+          className="primary-btn"
+          onClick={refreshReports}
+          disabled={loadingReports}
+        >
+          {loadingReports ? "Refreshing..." : "🔄 Refresh Data"}
+        </button>
         <div className="dashboard-grid">
           <div className="dashboard-card">
             <span className="dashboard-icon">🛣️</span>
