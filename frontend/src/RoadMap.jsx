@@ -1,5 +1,5 @@
 
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -39,12 +39,23 @@ function RoadMap({ reports = [] }) {
                         report.longitude !== null
                 )
                 .map((report) => (
-                    <Marker
+
+                    <CircleMarker
                         key={report.id}
-                        position={[
+                        center={[
                             Number(report.latitude),
                             Number(report.longitude),
                         ]}
+                        radius={10}
+                        pathOptions={{
+                            color:
+                                report.severity === "High"
+                                    ? "red"
+                                    : report.severity === "Medium"
+                                        ? "orange"
+                                        : "green",
+                            fillOpacity: 0.8,
+                        }}
                     >
                         <Popup>
                             <strong>{report.location}</strong>
@@ -55,7 +66,8 @@ function RoadMap({ reports = [] }) {
                             <br />
                             Status: {report.status}
                         </Popup>
-                    </Marker>
+                    </CircleMarker>
+
                 ))}
         </MapContainer>
     );

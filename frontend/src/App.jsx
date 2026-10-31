@@ -90,6 +90,8 @@ function App() {
       setSeverity("Medium");
       setDescription("");
       setImage(null);
+      setLatitude("");
+      setLongitude("");
 
       // Reset the file input
       event.target.reset();
@@ -236,36 +238,14 @@ function App() {
 
       {/* Map Section */}
       <section className="map-section" id="map">
-        <div className="section-heading">
-          <p className="tagline">ROAD MAP</p>
-          <h2>Reported Road Issues</h2>
-          <p>
-            Explore road damage reports submitted through RoadSense AI.
-          </p>
-        </div>
-
+        <div></div> className="section-heading"
+        <p className="tagline">ROAD MAP</p>
+        <h2>Reported Road Issues</h2>
+        <p>
+          Explore road damage reports submitted through RoadSense AI.
+        </p>
         <div className="map-container">
-          <div className="map-placeholder">
-            <div className="map-content">
-              <span>🗺️</span>
-              <h3>Road Issue Map</h3>
-              <p>
-                An interactive map will show reported road damage
-                in a future update.
-              </p>
-
-              <button
-                className="primary-btn"
-                onClick={() => scrollToSection("report-form")}
-              >
-                Report a Road Issue
-              </button>
-            </div>
-
-            <div className="map-marker marker-one">📍</div>
-            <div className="map-marker marker-two">📍</div>
-            <div className="map-marker marker-three">📍</div>
-          </div>
+          <RoadMap reports={reports} />
         </div>
       </section>
 

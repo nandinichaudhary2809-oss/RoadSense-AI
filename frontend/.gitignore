@@ -27,3 +27,8 @@ dist-ssr
 __pycache__/
 *.py[cod]
 backend/roadsense.db
+
+# Backend Python files
+/backend/__pycache__/
+/backend/*.py[cod]
+/backend/roadsense.db

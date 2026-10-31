@@ -1,0 +1,4 @@
+backend/roadsense.db
+backend/__pycache__/
+__pycache__/
+*.pyc
