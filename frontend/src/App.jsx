@@ -1,9 +1,45 @@
-
 import { useEffect, useMemo, useState } from "react";
+import AuthPage from "./AuthPage";
 import RoadMap from "./RoadMap";
 import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
+
+const NAV_ITEMS = [
+  { id: "overview", href: "#overview", label: "Overview" },
+  { id: "dashboard", href: "#dashboard", label: "Dashboard" },
+  { id: "map", href: "#map", label: "Road Map" },
+  { id: "report-form", href: "#report-form", label: "Report Issues" },
+  { id: "reports", href: "#reports", label: "All Reports" },
+];
+
+const PAGE_META = {
+  overview: {
+    title: "Overview",
+    crumb: "Road intelligence",
+    subtitle: "Live community reports and network status",
+  },
+  dashboard: {
+    title: "Dashboard",
+    crumb: "Analytics",
+    subtitle: "Severity mix from submitted reports",
+  },
+  map: {
+    title: "Road Map",
+    crumb: "Geographic view",
+    subtitle: "Mapped issues with valid coordinates",
+  },
+  "report-form": {
+    title: "Report Issues",
+    crumb: "New submission",
+    subtitle: "Share a road condition with the network",
+  },
+  reports: {
+    title: "All Reports",
+    crumb: "Records",
+    subtitle: "Search and filter every submitted issue",
+  },
+};
 
 function App() {
   const [reports, setReports] = useState([]);
@@ -21,10 +57,13 @@ function App() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("All");
+  const [activeSection, setActiveSection] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadReports = async () => {
     try {
       setErrorMessage("");
+      setLoadingReports(true);
       const response = await fetch(`${API_URL}/reports`);
 
       if (!response.ok) {
@@ -39,6 +78,13 @@ function App() {
       setLoadingReports(false);
     }
   };
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("roadsense-user") || "null");
+    } catch {
+      return null;
+    }
+  });
 
   const [theme, setTheme] = useState(
     () => localStorage.getItem("roadsense-theme") || "light"
@@ -57,6 +103,34 @@ function App() {
     loadReports();
   }, []);
 
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const ids = NAV_ITEMS.map((item) => item.id);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visible?.target?.id) {
+          setActiveSection(visible.target.id);
+        }
+      },
+      {
+        rootMargin: "-18% 0px -55% 0px",
+        threshold: [0.12, 0.35, 0.6],
+      }
+    );
+
+    ids.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [currentUser]);
   const highReports = reports.filter(
     (report) => report.severity?.toLowerCase() === "high"
   ).length;
@@ -71,6 +145,14 @@ function App() {
 
   const pendingReports = reports.filter(
     (report) => (report.status || "Pending").toLowerCase() === "pending"
+  ).length;
+
+  const mappedReports = reports.filter(
+    (report) =>
+      Number.isFinite(Number(report.latitude)) &&
+      Number.isFinite(Number(report.longitude)) &&
+      report.latitude !== null &&
+      report.longitude !== null
   ).length;
 
   const filteredReports = useMemo(() => {
@@ -156,480 +238,518 @@ function App() {
     });
   };
 
-  const scrollToReport = () => {
-    document.getElementById("report-form")?.scrollIntoView({
+  const scrollToSection = (id) => {
+    document.getElementById(id)?.scrollIntoView({
       behavior: "smooth",
     });
+    setActiveSection(id);
+    setSidebarOpen(false);
   };
 
+  const scrollToReport = () => {
+    scrollToSection("report-form");
+  };
+
+  const goToReports = () => {
+    scrollToSection("reports");
+  };
+
+  const page = PAGE_META[activeSection] || PAGE_META.overview;
+  const handleLogout = () => {
+    sessionStorage.removeItem("roadsense-token");
+    sessionStorage.removeItem("roadsense-user");
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) {
+    return <AuthPage onLogin={setCurrentUser} />;
+  }
+  const total = reports.length || 0;
+  const severityBars = [
+    { label: "High", value: highReports, tone: "high" },
+    { label: "Medium", value: mediumReports, tone: "medium" },
+    { label: "Low", value: lowReports, tone: "low" },
+  ];
+
   return (
-    <div className="app" data-theme={theme}>
-      <nav className="navbar">
-        <a href="#home" className="brand">
-          <span className="brand-mark">R</span>
-          <span>
-            RoadSense <span className="brand-ai">AI</span>
+    <div className={`app ${sidebarOpen ? "sidebar-open" : ""}`} data-theme={theme}>
+      {sidebarOpen && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className="sidebar">
+        <a href="#overview" className="brand" onClick={() => scrollToSection("overview")}>
+          <span className="brand-mark">RS</span>
+          <span className="brand-copy">
+            <strong>RoadSense AI</strong>
+            <small>Road intelligence</small>
           </span>
         </a>
 
-        <div className="nav-links">
-          <a href="#home">Home</a>
-          <a href="#dashboard">Dashboard</a>
-          <a href="#map">Road Map</a>
-          <a href="#reports">Reports</a>
-        </div>
-
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          aria-label="Toggle color theme"
-          title="Switch theme"
-        >
-          {theme === "light" ? "☾" : "☀"}
-        </button>
-
-        <button className="nav-cta" onClick={scrollToReport}>
-          Report a road issue <span>↗</span>
-        </button>
-      </nav>
-
-      <main>
-
-        <section className="hero hero-premium" id="home">
-          <div className="hero-content">
-            <div className="eyebrow">
-              <span className="eyebrow-dot"></span>
-              INTELLIGENCE FOR BETTER ROADS
-            </div>
-
-            <h1>
-              Making every road safer,
-              <span> one report at a time.</span>
-            </h1>
-
-            <p className="hero-description">
-              Detect road issues. Share local insights. Help prioritize
-              safer infrastructure with RoadSense AI — a smarter,
-              community-powered approach to road safety.
-            </p>
-
-            <div className="hero-actions">
-              <button className="button-primary" onClick={scrollToReport}>
-                Report a road issue <span>↗</span>
-              </button>
-
-              <a href="#map" className="button-text">
-                Explore road map <span>→</span>
-              </a>
-            </div>
-
-            <div className="hero-trust">
-              <span className="hero-trust-line"></span>
-              COMMUNITY POWERED · DATA INFORMED
-            </div>
-          </div>
-
-          <div className="hero-info-panel">
-            <div className="panel-top">
-              <span>ROAD NETWORK OVERVIEW</span>
-              <span className="panel-status">
-                <i></i> SYSTEM ACTIVE
-              </span>
-            </div>
-
-            <div className="panel-heading">
-              <span>01 / LIVE INSIGHTS</span>
-              <h2>Better data.<br />Better decisions.</h2>
-              <p>Road conditions, brought into focus.</p>
-            </div>
-
-            <div className="panel-stat">
-              <div>
-                <span>Total road reports</span>
-                <small>Community submissions</small>
-              </div>
-              <strong>{reports.length}</strong>
-            </div>
-
-            <div className="panel-stat">
-              <div>
-                <span>High priority</span>
-                <small>Requires attention</small>
-              </div>
-              <strong className="panel-high">{highReports}</strong>
-            </div>
-
-            <div className="panel-stat">
-              <div>
-                <span>Pending reports</span>
-                <small>Awaiting resolution</small>
-              </div>
-              <strong>{pendingReports}</strong>
-            </div>
-
-            <a href="#dashboard" className="panel-link">
-              View full dashboard <span>↗</span>
+        <nav className="sidebar-nav" aria-label="Primary">
+          {NAV_ITEMS.map((item) => (
+            <a
+              key={item.id}
+              href={item.href}
+              className={activeSection === item.id ? "is-active" : ""}
+              onClick={(event) => {
+                event.preventDefault();
+                scrollToSection(item.id);
+              }}
+            >
+              {item.label}
             </a>
-          </div>
-        </section>
+          ))}
+        </nav>
 
-        <section className="overview-strip">
-          <div className="overview-item">
-            <span className="overview-label">TOTAL REPORTS</span>
-            <strong>{reports.length}</strong>
-            <span className="overview-note">Community submissions</span>
-          </div>
+        <div className="sidebar-footer">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label="Toggle color theme"
+            title="Switch theme"
+          >
+            {theme === "light" ? "Dark mode" : "Light mode"}
+          </button>
+          <p>Community-powered road data</p>
+        </div>
+      </aside>
 
-          <div className="overview-item">
-            <span className="overview-label">HIGH PRIORITY</span>
-            <strong className="text-red">{highReports}</strong>
-            <span className="overview-note">Requires attention</span>
-          </div>
-
-          <div className="overview-item">
-            <span className="overview-label">MEDIUM PRIORITY</span>
-            <strong className="text-orange">{mediumReports}</strong>
-            <span className="overview-note">Needs monitoring</span>
-          </div>
-
-          <div className="overview-item">
-            <span className="overview-label">LOW PRIORITY</span>
-            <strong className="text-green">{lowReports}</strong>
-            <span className="overview-note">Lower severity</span>
-          </div>
-        </section>
-
-        <section className="section-padding" id="dashboard">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">SYSTEM OVERVIEW</div>
-              <h2>Road intelligence dashboard</h2>
-              <p>Understand reported road conditions at a glance.</p>
-            </div>
-
-            <button className="button-outline" onClick={loadReports}>
-              <span>↻</span> Refresh data
+      <div className="workspace">
+        <header className="topbar">
+          <div className="topbar-title">
+            <button
+              className="menu-toggle"
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-label="Open navigation"
+            >
+              Menu
             </button>
-          </div>
-
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <div className="analytics-card-top">
-                <span className="analytics-label">Total road reports</span>
-                <span className="analytics-symbol">↗</span>
-              </div>
-              <strong>{reports.length}</strong>
-              <div className="analytics-line line-dark"></div>
-              <span className="dashboard-footnote">All submitted reports</span>
-            </div>
-
-            <div className="analytics-card">
-              <div className="analytics-card-top">
-                <span className="analytics-label">High severity</span>
-                <span className="analytics-symbol">!</span>
-              </div>
-              <strong>{highReports}</strong>
-              <div className="analytics-line line-red"></div>
-              <span className="dashboard-footnote">Priority road issues</span>
-            </div>
-
-            <div className="analytics-card">
-              <div className="analytics-card-top">
-                <span className="analytics-label">Medium severity</span>
-                <span className="analytics-symbol">◉</span>
-              </div>
-              <strong>{mediumReports}</strong>
-              <div className="analytics-line line-orange"></div>
-              <span className="dashboard-footnote">Moderate road issues</span>
-            </div>
-
-            <div className="analytics-card">
-              <div className="analytics-card-top">
-                <span className="analytics-label">Pending reports</span>
-                <span className="analytics-symbol">◷</span>
-              </div>
-              <strong>{pendingReports}</strong>
-              <div className="analytics-line line-green"></div>
-              <span className="dashboard-footnote">Awaiting resolution</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="section-padding map-section" id="map">
-          <div className="section-header">
             <div>
-              <div className="eyebrow">GEOGRAPHIC INSIGHTS</div>
-              <h2>Explore the road map</h2>
-              <p>View reported road issues across their locations.</p>
-            </div>
-
-            <div className="map-legend">
-              <span><i className="legend-red"></i> High</span>
-              <span><i className="legend-orange"></i> Medium</span>
-              <span><i className="legend-green"></i> Low</span>
-            </div>
-          </div>
-
-          <div className="map-container">
-            <RoadMap reports={reports} />
-          </div>
-
-          <p className="map-caption">
-            Map markers are based on the location coordinates submitted with
-            each report.
-          </p>
-        </section>
-
-        <section className="section-padding report-section" id="report-form">
-          <div className="report-intro">
-            <div className="eyebrow">MAKE AN IMPACT</div>
-            <h2>Spot a problem? Help make roads safer.</h2>
-            <p>
-              Share road damage details with the community. Every report
-              contributes to better road awareness and repair planning.
-            </p>
-
-            <div className="report-points">
-              <p><span>01</span> Share the road location</p>
-              <p><span>02</span> Describe the road condition</p>
-              <p><span>03</span> Help prioritize repairs</p>
-            </div>
-          </div>
-
-          <div className="form-panel">
-            <div className="form-heading">
-              <div>
-                <span className="form-kicker">NEW SUBMISSION</span>
-                <h3>Report a road issue</h3>
-              </div>
-              <span className="form-number">01 / 03</span>
-            </div>
-
-            <form className="report-form" onSubmit={handleReportSubmit}>
-              <div className="form-field">
-                <label htmlFor="location">Road location *</label>
-                <input
-                  id="location"
-                  type="text"
-                  placeholder="Enter road name or area"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-field">
-                  <label htmlFor="latitude">Latitude</label>
-                  <input
-                    id="latitude"
-                    type="number"
-                    step="any"
-                    placeholder="e.g. 30.7046"
-                    value={latitude}
-                    onChange={(e) => setLatitude(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label htmlFor="longitude">Longitude</label>
-                  <input
-                    id="longitude"
-                    type="number"
-                    step="any"
-                    placeholder="e.g. 76.7179"
-                    value={longitude}
-                    onChange={(e) => setLongitude(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <p className="field-note">
-                Coordinates help display the report on the interactive map.
+              <p className="breadcrumb">
+                RoadSense AI <span>/</span> {page.crumb}
               </p>
-
-              <div className="form-field">
-                <label htmlFor="severity">Severity level *</label>
-                <select
-                  id="severity"
-                  value={severity}
-                  onChange={(e) => setSeverity(e.target.value)}
-                >
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="description">Issue description *</label>
-                <textarea
-                  id="description"
-                  rows="4"
-                  placeholder="Describe the pothole or road damage..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                ></textarea>
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="image">Upload an image (optional)</label>
-                <input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setImage(e.target.files?.[0] || null)}
-                />
-                <p className="field-note">
-                  Image selection is currently for reference only; it is not
-                  uploaded to the backend.
-                </p>
-              </div>
-
-              <p className="required-note">* Required fields</p>
-
-              {errorMessage && (
-                <div className="form-alert error-alert">{errorMessage}</div>
-              )}
-
-              {successMessage && (
-                <div className="form-alert success-alert">{successMessage}</div>
-              )}
-
-              <button className="button-primary form-submit" type="submit" disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit road report"}
-                {!submitting && <span>↗</span>}
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <section className="section-padding reports-section" id="reports">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">COMMUNITY DATA</div>
-              <h2>Recently reported issues</h2>
-              <p>Search and explore submitted road reports.</p>
+              <h1>{page.title}</h1>
+              <p className="page-subtitle">{page.subtitle}</p>
             </div>
-            <span className="report-count">{filteredReports.length} reports</span>
           </div>
 
-          <div className="report-toolbar">
-            <div className="search-control">
-              <span>⌕</span>
+          <div className="topbar-actions">
+            <label className="header-search">
+              <span className="sr-only">Search reports</span>
               <input
                 type="search"
-                placeholder="Search by location or description..."
+                placeholder="Search location or description"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={goToReports}
               />
+            </label>
+
+            <button className="button-outline" onClick={loadReports} disabled={loadingReports}>
+              {loadingReports ? "Refreshing..." : "Refresh"}
+            </button>
+
+            <button className="button-primary" onClick={scrollToReport}>
+              Report Issue
+            </button>
+          </div>
+        </header>
+
+        {errorMessage && (
+          <div className="global-alert" role="alert">
+            {errorMessage}
+          </div>
+        )}
+
+        <main>
+          <section className="panel" id="overview">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Overview</p>
+                <h2>Road network snapshot</h2>
+                <p>Counts below are calculated from the live reports API.</p>
+              </div>
             </div>
 
-            <select
-              className="filter-control"
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-            >
-              <option value="All">All severities</option>
-              <option value="High">High severity</option>
-              <option value="Medium">Medium severity</option>
-              <option value="Low">Low severity</option>
-            </select>
-          </div>
+            <div className="stat-grid">
+              <article className="stat-card">
+                <span>Total reports</span>
+                <strong>{reports.length}</strong>
+                <small>All submitted records</small>
+              </article>
+              <article className="stat-card">
+                <span>High severity</span>
+                <strong className="text-high">{highReports}</strong>
+                <small>Requires attention</small>
+              </article>
+              <article className="stat-card">
+                <span>Pending</span>
+                <strong>{pendingReports}</strong>
+                <small>Awaiting resolution</small>
+              </article>
+              <article className="stat-card">
+                <span>Mapped</span>
+                <strong>{mappedReports}</strong>
+                <small>Reports with coordinates</small>
+              </article>
+            </div>
 
-          <div className="reports-list">
-            {loadingReports ? (
-              <div className="empty-state">Loading road reports...</div>
-            ) : filteredReports.length === 0 ? (
-              <div className="empty-state">
-                No matching reports found. Try changing your search or filter.
+            <div className="process-grid">
+              <article className="content-card">
+                <span className="step">01</span>
+                <h3>Report</h3>
+                <p>Citizens submit road damage details and location information.</p>
+              </article>
+              <article className="content-card">
+                <span className="step">02</span>
+                <h3>Understand</h3>
+                <p>Reports are organized to make road conditions easier to review.</p>
+              </article>
+              <article className="content-card">
+                <span className="step">03</span>
+                <h3>Prioritize</h3>
+                <p>Severity insights help identify issues that need attention.</p>
+              </article>
+            </div>
+          </section>
+
+          <section className="panel" id="dashboard">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Dashboard</p>
+                <h2>Road intelligence dashboard</h2>
+                <p>Understand reported road conditions at a glance.</p>
               </div>
-            ) : (
-              filteredReports.map((report, index) => {
-                const level = (report.severity || "Medium").toLowerCase();
+            </div>
 
-                return (
-                  <article className="report-row" key={report.id ?? index}>
-                    <div className="report-row-main">
-                      <span className="report-index">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
+            <div className="stat-grid five">
+              <article className="stat-card">
+                <span>Total Reports</span>
+                <strong>{reports.length}</strong>
+                <small>All submitted reports</small>
+              </article>
+              <article className="stat-card">
+                <span>High Severity Reports</span>
+                <strong className="text-high">{highReports}</strong>
+                <small>Priority road issues</small>
+              </article>
+              <article className="stat-card">
+                <span>Medium Severity Reports</span>
+                <strong className="text-medium">{mediumReports}</strong>
+                <small>Needs monitoring</small>
+              </article>
+              <article className="stat-card">
+                <span>Low Severity Reports</span>
+                <strong className="text-low">{lowReports}</strong>
+                <small>Lower severity</small>
+              </article>
+              <article className="stat-card">
+                <span>Pending Reports</span>
+                <strong>{pendingReports}</strong>
+                <small>Awaiting resolution</small>
+              </article>
+            </div>
 
-                      <div>
-                        <h3>{report.location || "Unknown location"}</h3>
-                        <p>{report.description || "No description provided."}</p>
-                        <div className="report-row-meta">
-                          <span className={`severity-badge severity-${level}`}>
-                            {report.severity || "Medium"}
-                          </span>
-                          <span className="report-status">
-                            {report.status || "Pending"}
-                          </span>
-                        </div>
+            <div className="chart-card">
+              <div className="chart-heading">
+                <h3>Severity distribution</h3>
+                <p>Bars use live counts only. No estimated values are shown.</p>
+              </div>
+
+              {total === 0 ? (
+                <p className="empty-state">No reports yet, so there is no chart data to display.</p>
+              ) : (
+                <ul className="severity-chart">
+                  {severityBars.map((bar) => (
+                    <li key={bar.label}>
+                      <div className="chart-label">
+                        <span>{bar.label}</span>
+                        <strong>
+                          {bar.value} · {Math.round((bar.value / total) * 100)}%
+                        </strong>
                       </div>
+                      <div className="chart-track" aria-hidden="true">
+                        <span
+                          className={`chart-fill ${bar.tone}`}
+                          style={{ width: `${(bar.value / total) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          <section className="panel" id="map">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Road Map</p>
+                <h2>Explore reported locations</h2>
+                <p>View reported road issues across their coordinates.</p>
+              </div>
+              <div className="map-legend">
+                <span><i className="legend-red"></i> High</span>
+                <span><i className="legend-orange"></i> Medium</span>
+                <span><i className="legend-green"></i> Low</span>
+              </div>
+            </div>
+
+            <div className="map-container">
+              <RoadMap reports={reports} />
+            </div>
+
+            <p className="map-caption">
+              Map markers are based on the location coordinates submitted with
+              each report. {mappedReports} of {reports.length} reports currently have coordinates.
+            </p>
+          </section>
+
+          <section className="panel report-section" id="report-form">
+            <div className="report-layout">
+              <div className="report-intro">
+                <p className="eyebrow">Report Issues</p>
+                <h2>Spot a problem? Help make roads safer.</h2>
+                <p>
+                  Share road damage details with the community. Every report
+                  contributes to better road awareness and repair planning.
+                </p>
+                <div className="report-points">
+                  <p><span>01</span> Share the road location</p>
+                  <p><span>02</span> Describe the road condition</p>
+                  <p><span>03</span> Help prioritize repairs</p>
+                </div>
+              </div>
+
+              <div className="form-panel">
+                <div className="form-heading">
+                  <div>
+                    <span className="form-kicker">New submission</span>
+                    <h3>Report a road issue</h3>
+                  </div>
+                </div>
+
+                <form className="report-form" onSubmit={handleReportSubmit}>
+                  <div className="form-field">
+                    <label htmlFor="location">Road location *</label>
+                    <input
+                      id="location"
+                      type="text"
+                      placeholder="Enter road name or area"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-field">
+                      <label htmlFor="latitude">Latitude</label>
+                      <input
+                        id="latitude"
+                        type="number"
+                        step="any"
+                        placeholder="e.g. 30.7046"
+                        value={latitude}
+                        onChange={(e) => setLatitude(e.target.value)}
+                      />
                     </div>
 
-                    <span className="report-date">
-                      {formatDate(report.created_at)}
-                    </span>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
+                    <div className="form-field">
+                      <label htmlFor="longitude">Longitude</label>
+                      <input
+                        id="longitude"
+                        type="number"
+                        step="any"
+                        placeholder="e.g. 76.7179"
+                        value={longitude}
+                        onChange={(e) => setLongitude(e.target.value)}
+                      />
+                    </div>
+                  </div>
 
-        <section className="section-padding process-section" id="process">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">HOW IT WORKS</div>
-              <h2>Small reports. Smarter decisions.</h2>
-              <p>A simple process for better road intelligence.</p>
+                  <p className="field-note">
+                    Coordinates help display the report on the interactive map.
+                  </p>
+
+                  <div className="form-field">
+                    <label htmlFor="severity">Severity level *</label>
+                    <select
+                      id="severity"
+                      value={severity}
+                      onChange={(e) => setSeverity(e.target.value)}
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="description">Issue description *</label>
+                    <textarea
+                      id="description"
+                      rows="4"
+                      placeholder="Describe the pothole or road damage..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="image">Upload an image (optional)</label>
+                    <input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setImage(e.target.files?.[0] || null)}
+                    />
+                    <p className="field-note">
+                      Image selection is currently for reference only; it is not
+                      uploaded to the backend.
+                    </p>
+                  </div>
+
+                  <p className="required-note">* Required fields</p>
+
+                  {errorMessage && (
+                    <div className="form-alert error-alert">{errorMessage}</div>
+                  )}
+
+                  {successMessage && (
+                    <div className="form-alert success-alert">{successMessage}</div>
+                  )}
+
+                  <button className="button-primary form-submit" type="submit" disabled={submitting}>
+                    {submitting ? "Submitting..." : "Submit road report"}
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div className="process-grid">
-            <div className="process-card">
-              <span className="process-number">01</span>
-              <h3>Report</h3>
-              <p>Citizens submit road damage details and location information.</p>
+          <section className="panel" id="reports">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">All Reports</p>
+                <h2>Recently reported issues</h2>
+                <p>Search and explore submitted road reports.</p>
+              </div>
+              <span className="report-count">{filteredReports.length} reports</span>
             </div>
 
-            <div className="process-card">
-              <span className="process-number">02</span>
-              <h3>Understand</h3>
-              <p>Reports are organized to make road conditions easier to review.</p>
+            <div className="report-toolbar">
+              <div className="search-control">
+                <input
+                  type="search"
+                  placeholder="Search by location or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              <select
+                className="filter-control"
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value)}
+              >
+                <option value="All">All severities</option>
+                <option value="High">High severity</option>
+                <option value="Medium">Medium severity</option>
+                <option value="Low">Low severity</option>
+              </select>
             </div>
 
-            <div className="process-card">
-              <span className="process-number">03</span>
-              <h3>Prioritize</h3>
-              <p>Severity insights help identify issues that need attention.</p>
+            <div className="table-wrap desktop-table">
+              {loadingReports ? (
+                <div className="empty-state">Loading road reports...</div>
+              ) : filteredReports.length === 0 ? (
+                <div className="empty-state">
+                  No matching reports found. Try changing your search or filter.
+                </div>
+              ) : (
+                <table className="reports-table">
+                  <thead>
+                    <tr>
+                      <th>Location</th>
+                      <th>Severity</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReports.map((report, index) => {
+                      const level = (report.severity || "Medium").toLowerCase();
+
+                      return (
+                        <tr key={report.id ?? index}>
+                          <td>{report.location || "Unknown location"}</td>
+                          <td>
+                            <span className={`severity-badge severity-${level}`}>
+                              {report.severity || "Medium"}
+                            </span>
+                          </td>
+                          <td>{report.description || "No description provided."}</td>
+                          <td>{report.status || "Pending"}</td>
+                          <td>{formatDate(report.created_at)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-          </div>
-        </section>
-      </main>
 
-      <footer className="footer">
-        <div className="footer-main">
-          <a href="#home" className="brand footer-brand">
-            <span className="brand-mark">R</span>
-            <span>
-              RoadSense <span className="brand-ai">AI</span>
-            </span>
-          </a>
+            <div className="reports-list mobile-cards">
+              {loadingReports ? (
+                <div className="empty-state">Loading road reports...</div>
+              ) : filteredReports.length === 0 ? (
+                <div className="empty-state">
+                  No matching reports found. Try changing your search or filter.
+                </div>
+              ) : (
+                filteredReports.map((report, index) => {
+                  const level = (report.severity || "Medium").toLowerCase();
 
-          <p>Smarter roads begin with better information.</p>
+                  return (
+                    <article className="report-row" key={report.id ?? `card-${index}`}>
+                      <div className="report-row-main">
+                        <div>
+                          <h3>{report.location || "Unknown location"}</h3>
+                          <p>{report.description || "No description provided."}</p>
+                          <div className="report-row-meta">
+                            <span className={`severity-badge severity-${level}`}>
+                              {report.severity || "Medium"}
+                            </span>
+                            <span className="report-status">
+                              {report.status || "Pending"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="report-date">
+                        {formatDate(report.created_at)}
+                      </span>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </main>
 
-          <a href="#home" className="footer-link">Back to top ↑</a>
-        </div>
-
-        <div className="footer-bottom">
+        <footer className="footer">
           <span>© {new Date().getFullYear()} RoadSense AI</span>
           <span>AI-powered road intelligence</span>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }

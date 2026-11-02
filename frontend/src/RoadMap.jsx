@@ -1,4 +1,3 @@
-
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -21,9 +20,9 @@ function RoadMap({ reports = [] }) {
 
     return (
         <MapContainer
+            className="road-map"
             center={defaultPosition}
             zoom={12}
-            style={{ height: "450px", width: "100%", borderRadius: "12px" }}
         >
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
