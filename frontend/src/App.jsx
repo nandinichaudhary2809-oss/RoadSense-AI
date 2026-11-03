@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import LocationPicker from "./LocationPicker";
 import AuthPage from "./AuthPage";
 import RoadMap from "./RoadMap";
 import "./App.css";
@@ -168,7 +169,55 @@ function App() {
       return matchesSearch && matchesSeverity;
     });
   }, [reports, searchTerm, severityFilter]);
+  const [selectedPosition, setSelectedPosition] = useState(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
+  const selectMapLocation = async (lat, lng) => {
+    setLatitude(lat.toFixed(6));
+    setLongitude(lng.toFixed(6));
+    setSelectedPosition([lat, lng]);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setLocation(data.display_name || `${lat}, ${lng}`);
+      }
+    } catch (error) {
+      console.error("Address lookup failed:", error);
+      setLocation(`${lat}, ${lng}`);
+    }
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setErrorMessage("Your browser does not support GPS location.");
+      return;
+    }
+
+    setGettingLocation(true);
+    setErrorMessage("");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        selectMapLocation(
+          position.coords.latitude,
+          position.coords.longitude
+        );
+        setGettingLocation(false);
+      },
+      (error) => {
+        setGettingLocation(false);
+        setErrorMessage(
+          "Unable to get location. Please allow location permission."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
   const handleReportSubmit = async (event) => {
     event.preventDefault();
 
@@ -210,10 +259,10 @@ function App() {
       setLocation("");
       setLatitude("");
       setLongitude("");
+      setSelectedPosition(null);
       setSeverity("Medium");
       setDescription("");
       setImage(null);
-      event.target.reset();
 
       setSuccessMessage("Your road report has been submitted successfully.");
     } catch (error) {
@@ -536,40 +585,42 @@ function App() {
 
                 <form className="report-form" onSubmit={handleReportSubmit}>
                   <div className="form-field">
-                    <label htmlFor="location">Road location *</label>
+                    <label>Choose road location *</label>
+
+                    <button
+                      type="button"
+                      className="button-outline"
+                      onClick={useCurrentLocation}
+                      disabled={gettingLocation}
+                    >
+                      {gettingLocation ? "Getting location..." : "📍 Use My Current Location"}
+                    </button>
+
+                    <LocationPicker
+                      position={selectedPosition}
+                      onSelect={selectMapLocation}
+                    />
+
+                    <label htmlFor="location">Selected address</label>
                     <input
                       id="location"
                       type="text"
-                      placeholder="Enter road name or area"
+                      placeholder="Select a location on the map"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                       required
                     />
-                  </div>
 
-                  <div className="form-row">
-                    <div className="form-field">
-                      <label htmlFor="latitude">Latitude</label>
-                      <input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        placeholder="e.g. 30.7046"
-                        value={latitude}
-                        onChange={(e) => setLatitude(e.target.value)}
-                      />
-                    </div>
+                    <div className="form-row">
+                      <div className="form-field">
+                        <label>Latitude</label>
+                        <input value={latitude} readOnly placeholder="Auto-filled" />
+                      </div>
 
-                    <div className="form-field">
-                      <label htmlFor="longitude">Longitude</label>
-                      <input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        placeholder="e.g. 76.7179"
-                        value={longitude}
-                        onChange={(e) => setLongitude(e.target.value)}
-                      />
+                      <div className="form-field">
+                        <label>Longitude</label>
+                        <input value={longitude} readOnly placeholder="Auto-filled" />
+                      </div>
                     </div>
                   </div>
 
