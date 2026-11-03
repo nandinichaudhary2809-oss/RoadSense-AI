@@ -1,74 +1,173 @@
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+
+import { useEffect, useState } from "react";
+import {
+    MapContainer,
+    TileLayer,
+    CircleMarker,
+    Popup,
+    useMap,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 
-// Fix default marker icons in Vite
-delete L.Icon.Default.prototype._getIconUrl;
+const defaultPosition = [30.7333, 76.7794];
 
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl:
-        "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-    iconUrl:
-        "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-    shadowUrl:
-        "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-});
+// Map ko current location par move karna
+function MapController({ position }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (position) {
+            map.flyTo(position, 16, { duration: 1.5 });
+        }
+    }, [position, map]);
+
+    return null;
+}
 
 function RoadMap({ reports = [] }) {
-    // Default view: Chandigarh
-    const defaultPosition = [30.7333, 76.7794];
+    const [currentPosition, setCurrentPosition] = useState(null);
+    const [tracking, setTracking] = useState(false);
+    const [locationError, setLocationError] = useState("");
+
+    // Continuous GPS tracking
+    useEffect(() => {
+        if (!navigator.geolocation) {
+            setLocationError("Geolocation is not supported by your browser.");
+            return;
+        }
+
+        const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                setCurrentPosition([
+                    position.coords.latitude,
+                    position.coords.longitude,
+                ]);
+                setLocationError("");
+                setTracking(true);
+            },
+            (error) => {
+                setTracking(false);
+                setLocationError(
+                    error.code === 1
+                        ? "Location permission denied. Please allow location access."
+                        : "Unable to get your location."
+                );
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 5000,
+                timeout: 15000,
+            }
+        );
+
+        return () => {
+            navigator.geolocation.clearWatch(watchId);
+        };
+    }, []);
+
+    const goToMyLocation = () => {
+        if (currentPosition) {
+            setLocationError("");
+            return;
+        }
+
+        setLocationError("Waiting for GPS location...");
+    };
 
     return (
-        <MapContainer
-            className="road-map"
-            center={defaultPosition}
-            zoom={12}
-        >
-            <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+        <div className="road-map-wrapper">
+            <div className="map-location-bar">
+                <button
+                    type="button"
+                    className="button-outline"
+                    onClick={goToMyLocation}
+                >
+                    📍 My Location
+                </button>
 
-            {reports
-                .filter(
-                    (report) =>
-                        Number.isFinite(Number(report.latitude)) &&
-                        Number.isFinite(Number(report.longitude)) &&
-                        report.latitude !== null &&
-                        report.longitude !== null
-                )
-                .map((report) => (
+                <span>
+                    {tracking ? "🟢 Live location active" : "Getting location..."}
+                </span>
+            </div>
 
+            {locationError && (
+                <p className="map-location-error">{locationError}</p>
+            )}
+
+            <MapContainer
+                className="road-map"
+                center={defaultPosition}
+                zoom={12}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                <MapController position={currentPosition} />
+
+                {/* Live user location */}
+                {currentPosition && (
                     <CircleMarker
-                        key={report.id}
-                        center={[
-                            Number(report.latitude),
-                            Number(report.longitude),
-                        ]}
+                        center={currentPosition}
                         radius={10}
                         pathOptions={{
-                            color:
-                                report.severity === "High"
-                                    ? "red"
-                                    : report.severity === "Medium"
-                                        ? "orange"
-                                        : "green",
-                            fillOpacity: 0.8,
+                            color: "#2563eb",
+                            fillColor: "#3b82f6",
+                            fillOpacity: 1,
+                            weight: 3,
                         }}
                     >
                         <Popup>
-                            <strong>{report.location}</strong>
+                            <strong>📍 Your Live Location</strong>
                             <br />
-                            Severity: {report.severity}
+                            Latitude: {currentPosition[0].toFixed(6)}
                             <br />
-                            {report.description}
-                            <br />
-                            Status: {report.status}
+                            Longitude: {currentPosition[1].toFixed(6)}
                         </Popup>
                     </CircleMarker>
+                )}
 
-                ))}
-        </MapContainer>
+                {/* Existing pothole report markers */}
+                {reports
+                    .filter(
+                        (report) =>
+                            report.latitude !== null &&
+                            report.longitude !== null &&
+                            Number.isFinite(Number(report.latitude)) &&
+                            Number.isFinite(Number(report.longitude))
+                    )
+                    .map((report) => (
+                        <CircleMarker
+                            key={report.id}
+                            center={[
+                                Number(report.latitude),
+                                Number(report.longitude),
+                            ]}
+                            radius={10}
+                            pathOptions={{
+                                color:
+                                    report.severity === "High"
+                                        ? "red"
+                                        : report.severity === "Medium"
+                                            ? "orange"
+                                            : "green",
+                                fillOpacity: 0.8,
+                            }}
+                        >
+                            <Popup>
+                                <strong>{report.location}</strong>
+                                <br />
+                                Severity: {report.severity}
+                                <br />
+                                {report.description}
+                                <br />
+                                Status: {report.status}
+                            </Popup>
+                        </CircleMarker>
+                    ))}
+            </MapContainer>
+        </div>
     );
 }
 
