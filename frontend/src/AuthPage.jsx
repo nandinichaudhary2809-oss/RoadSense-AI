@@ -2,7 +2,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://roadsense-ai-h736.onrender.com";
 
 function AuthPage({ onLogin }) {
     const [mode, setMode] = useState("login");
