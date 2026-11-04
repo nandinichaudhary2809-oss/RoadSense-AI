@@ -406,6 +406,13 @@ function App() {
             <button className="button-primary" onClick={scrollToReport}>
               Report Issue
             </button>
+            <button
+              className="button-outline"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+
           </div>
         </header>
 
