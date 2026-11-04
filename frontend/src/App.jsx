@@ -4,7 +4,7 @@ import AuthPage from "./AuthPage";
 import RoadMap from "./RoadMap";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://roadsense-ai-h736.onrender.com";
 
 const NAV_ITEMS = [
   { id: "overview", href: "#overview", label: "Overview" },
