@@ -335,7 +335,7 @@ function App() {
           <span className="brand-mark">RS</span>
           <span className="brand-copy">
             <strong>RoadSense AI</strong>
-            <small>Road intelligence</small>
+            <small> ROAD INTELLIGENCE</small>
           </span>
         </a>
 
